@@ -178,4 +178,10 @@ These are typically introduced when scaling beyond a single VM or during later p
 6. Push one new commit to `main` and wait for GitHub Actions CI/CD run to finish.
 7. Verify app on `http://<EC2_PUBLIC_IP>` and verify API at `http://<EC2_PUBLIC_IP>/api/tutorials`.
 8. Capture screenshots listed in this README and commit them under `docs/screenshots/`.
-9. Share your GitHub repository link as the final deliverable. 
+9. Share your GitHub repository link as the final deliverable.
+## 14) Check Screenshots Folder, which have:
+   - GitHub Actions successful run
+   - Docker Hub backend repo
+   - Docker Hub frontend repo
+   - docker ps on VM
+   - App running in browser
