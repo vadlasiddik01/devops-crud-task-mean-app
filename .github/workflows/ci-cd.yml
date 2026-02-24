@@ -1,0 +1,105 @@
+name: CI-CD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: docker.io
+  BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/mean-crud-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/mean-crud-frontend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: meta
+        run: echo "image_tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ steps.meta.outputs.image_tag }}
+            ${{ env.BACKEND_IMAGE }}:latest
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.image_tag }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy compose file to VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: docker-compose.yml
+          target: /home/${{ secrets.VM_USER }}/mean-app
+
+      - name: Deploy on VM over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          MONGO_URI: mongodb://mongo:27017/dd_db
+          NODE_ENV: production
+          PORT: 8080
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          envs: DOCKERHUB_USERNAME,IMAGE_TAG,MONGO_URI,NODE_ENV,PORT,DOCKERHUB_TOKEN
+          script: |
+            set -e
+            mkdir -p /home/${{ secrets.VM_USER }}/mean-app
+            cd /home/${{ secrets.VM_USER }}/mean-app
+
+            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
+            cat > .env <<EOF_ENV
+            DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME
+            IMAGE_TAG=$IMAGE_TAG
+            MONGO_URI=$MONGO_URI
+            NODE_ENV=$NODE_ENV
+            PORT=$PORT
+            EOF_ENV
+
+            docker compose pull
+            docker compose up -d
+            docker image prune -f

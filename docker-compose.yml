@@ -1,0 +1,48 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: mean-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - mean_net
+
+  backend:
+    image: ${DOCKERHUB_USERNAME:-local}/mean-crud-backend:${IMAGE_TAG:-local}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mean-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - NODE_ENV=${NODE_ENV}
+      - PORT=${PORT}
+    depends_on:
+      - mongo
+    networks:
+      - mean_net
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME:-local}/mean-crud-frontend:${IMAGE_TAG:-local}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mean-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - mean_net
+
+volumes:
+  mongo_data:
+
+networks:
+  mean_net:
+    driver: bridge

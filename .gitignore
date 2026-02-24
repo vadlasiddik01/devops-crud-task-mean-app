@@ -1,0 +1,19 @@
+# Node modules
+backend/node_modules
+frontend/node_modules
+
+# Build artifacts
+frontend/dist
+frontend/.angular
+
+# Env files
+.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
